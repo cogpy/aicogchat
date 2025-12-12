@@ -1,0 +1,75 @@
+{
+  "functions": [
+    {
+      "name": "pln_deduction",
+      "description": "Calculate PLN deduction TruthValue from two premises",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "premise1_strength": {
+            "type": "number",
+            "description": "Strength of first premise (0-1)"
+          },
+          "premise1_confidence": {
+            "type": "number",
+            "description": "Confidence of first premise (0-1)"
+          },
+          "premise2_strength": {
+            "type": "number",
+            "description": "Strength of second premise (0-1)"
+          },
+          "premise2_confidence": {
+            "type": "number",
+            "description": "Confidence of second premise (0-1)"
+          }
+        },
+        "required": ["premise1_strength", "premise1_confidence", "premise2_strength", "premise2_confidence"]
+      }
+    },
+    {
+      "name": "create_bind_rule",
+      "description": "Generate a URE BindLink rule from a pattern description",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "rule_name": {
+            "type": "string",
+            "description": "Name for the rule"
+          },
+          "pattern_description": {
+            "type": "string",
+            "description": "Natural language description of the pattern to match"
+          },
+          "conclusion_type": {
+            "type": "string",
+            "description": "Type of conclusion to generate"
+          }
+        },
+        "required": ["rule_name", "pattern_description"]
+      }
+    },
+    {
+      "name": "run_inference",
+      "description": "Execute inference on the AtomSpace",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["forward", "backward"],
+            "description": "Inference direction"
+          },
+          "rule_base": {
+            "type": "string",
+            "description": "Name of the rule base to use"
+          },
+          "max_steps": {
+            "type": "integer",
+            "description": "Maximum inference steps"
+          }
+        },
+        "required": ["mode", "rule_base"]
+      }
+    }
+  ]
+}

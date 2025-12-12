@@ -180,3 +180,90 @@ Edit `src/serve.rs` for HTTP server changes.
 
 ### Updating model definitions
 Edit `models.yaml` directly - this file defines all provider models and their capabilities.
+
+## OpenCog Integration
+
+This fork includes native OpenCog AGI framework support with specialized roles, agents, and macros.
+
+### OpenCog Client
+
+The `opencog` client type connects to OpenCog servers with an OpenAI-compatible API:
+
+```yaml
+# In config.yaml
+clients:
+  - type: opencog
+    api_base: http://localhost:5000/v1
+    api_key: xxx  # Optional
+```
+
+Available models:
+- `opencog:opencog-chat` - General conversation
+- `opencog:opencog-reasoning` - PLN/URE inference
+- `opencog:opencog-hyperon` - MeTTa/Hyperon tasks
+- `opencog:opencog-embed` - Embeddings
+
+### OpenCog Roles
+
+Built-in roles for OpenCog components (in `assets/roles/`):
+
+| Role | Description |
+|------|-------------|
+| `atomspace` | AtomSpace knowledge representation and queries |
+| `pln` | Probabilistic Logic Networks reasoning |
+| `ure` | Unified Rule Engine configuration |
+| `ecan` | Economic Attention Allocation Networks |
+| `moses` | Meta-Optimizing Semantic Evolutionary Search |
+| `cogserver` | CogServer administration |
+| `cogutil` | Debugging and logging utilities |
+| `hyperon` | MeTTa language and Hyperon framework |
+
+Usage:
+```bash
+aichat --role atomspace "Create an inheritance hierarchy for animals"
+# Or in REPL:
+.role pln
+```
+
+### OpenCog Agents
+
+Example agents in `examples/agents/`:
+
+- **opencog-reasoning**: PLN inference and URE rule design
+- **atomspace-query**: Natural language to AtomSpace queries
+- **opencog-nlp**: NLP pipeline and knowledge extraction
+
+To install an agent:
+```bash
+cp -r examples/agents/opencog-reasoning ~/.config/aichat/functions/agents/
+```
+
+### OpenCog Macros
+
+Example macros in `examples/macros/`:
+
+| Macro | Description |
+|-------|-------------|
+| `opencog-init` | Initialize AtomSpace development session |
+| `pln-reasoning` | Set up PLN inference session |
+| `opencog-debug` | Debugging session with logging |
+| `hyperon-metta` | MeTTa programming session |
+| `moses-learn` | MOSES program learning session |
+
+To install macros:
+```bash
+cp examples/macros/*.txt ~/.config/aichat/macros/
+```
+
+Usage in REPL:
+```
+.macro opencog-init
+```
+
+### OpenCog Environment Variables
+
+```bash
+OPENCOG_API_BASE=http://localhost:5000/v1
+OPENCOG_API_KEY=your-key  # Optional
+```
+

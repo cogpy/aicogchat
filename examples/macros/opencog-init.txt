@@ -1,0 +1,10 @@
+# OpenCog Initialization Macro
+# Copy to: ~/.config/aichat/macros/opencog-init.txt
+# Usage: .macro opencog-init
+#
+# This macro sets up an OpenCog development session with AtomSpace role
+# and connects to a local CogServer for testing.
+
+.role atomspace
+.session opencog-dev
+.prompt You are assisting with OpenCog AtomSpace development. The CogServer is running on localhost:17001. Help the user create, query, and manipulate atoms.

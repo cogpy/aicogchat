@@ -1,0 +1,10 @@
+# PLN Reasoning Session Macro
+# Copy to: ~/.config/aichat/macros/pln-reasoning.txt
+# Usage: .macro pln-reasoning
+#
+# Sets up a PLN reasoning session with appropriate model and temperature
+# for logical inference tasks.
+
+.role pln
+.model opencog:opencog-reasoning
+.session pln-session

@@ -1,0 +1,11 @@
+# MOSES Learning Session Macro
+# Copy to: ~/.config/aichat/macros/moses-learn.txt
+# Usage: .macro moses-learn
+#
+# Sets up a MOSES program learning session for evolutionary
+# program synthesis tasks.
+
+.role moses
+.model opencog:opencog-reasoning
+.session moses-learning
+.prompt You are helping with MOSES program learning. The user will provide datasets and learning objectives. Help design fitness functions, configure MOSES parameters, and interpret learned programs.
