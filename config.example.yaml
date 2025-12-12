@@ -301,6 +301,26 @@ clients:
     api_base: https://api.deepinfra.com/v1/openai
     api_key: xxx
 
+  # OpenCog - Open-source AGI framework
+  # See https://opencog.org
+  - type: opencog
+    api_base: http://localhost:5000/v1              # OpenCog server endpoint
+    api_key: xxx                                     # Optional, if authentication is enabled
+    models:
+      - name: opencog-chat
+        max_input_tokens: 128000
+        supports_function_calling: true
+      - name: opencog-reasoning
+        max_input_tokens: 128000
+        supports_function_calling: true
+      - name: opencog-hyperon
+        max_input_tokens: 256000
+        supports_function_calling: true
+      - name: opencog-embed
+        type: embedding
+        default_chunk_size: 1500
+        max_batch_size: 100
+
 
   # ----- RAG dedicated -----
 

@@ -1,0 +1,10 @@
+# Hyperon/MeTTa Development Macro
+# Copy to: ~/.config/aichat/macros/hyperon-metta.txt
+# Usage: .macro hyperon-metta
+#
+# Sets up a MeTTa programming session for next-generation
+# OpenCog Hyperon development.
+
+.role hyperon
+.model opencog:opencog-hyperon
+.session metta-dev

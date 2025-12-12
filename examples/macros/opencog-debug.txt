@@ -1,0 +1,10 @@
+# OpenCog Debug Session Macro
+# Copy to: ~/.config/aichat/macros/opencog-debug.txt
+# Usage: .macro opencog-debug
+#
+# Sets up a debugging session with CogUtil logging expertise
+# for troubleshooting OpenCog issues.
+
+.role cogutil
+.session opencog-debug
+.prompt You are helping debug an OpenCog system. Focus on logging, memory usage, and performance analysis. Ask clarifying questions about error messages and system state.
