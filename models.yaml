@@ -2273,3 +2273,27 @@
       type: reranker
       max_input_tokens: 8000
       input_price: 0.02
+
+# OpenCog - Open-source AGI framework with LLM capabilities
+# Links:
+#  - https://opencog.org
+#  - https://github.com/opencog
+- provider: opencog
+  models:
+    - name: opencog-chat
+      max_input_tokens: 128000
+      max_output_tokens: 16384
+      supports_function_calling: true
+    - name: opencog-reasoning
+      max_input_tokens: 128000
+      max_output_tokens: 32768
+      supports_function_calling: true
+    - name: opencog-hyperon
+      max_input_tokens: 256000
+      max_output_tokens: 32768
+      supports_function_calling: true
+    - name: opencog-embed
+      type: embedding
+      max_input_tokens: 8192
+      default_chunk_size: 1500
+      max_batch_size: 100
