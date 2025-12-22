@@ -1,0 +1,63 @@
+{
+  "functions": [
+    {
+      "name": "query_atoms",
+      "description": "Query AtomSpace for atoms matching a pattern. Returns atoms by type, name, or relationship.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "atom_type": {
+            "type": "string",
+            "description": "Type of atom to query (ConceptNode, PredicateNode, InheritanceLink, etc.)"
+          },
+          "atom_name": {
+            "type": "string",
+            "description": "Optional name pattern to match (supports wildcards with *)"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of results to return (default: 10)"
+          }
+        },
+        "required": ["atom_type"]
+      }
+    },
+    {
+      "name": "create_query",
+      "description": "Convert natural language query to AtomSpace GetLink/BindLink pattern",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural language query to convert"
+          },
+          "query_type": {
+            "type": "string",
+            "enum": ["get", "bind", "satisfy"],
+            "description": "Type of query to generate (get=simple retrieval, bind=pattern match with action, satisfy=boolean check)"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "execute_pattern",
+      "description": "Execute a pattern matching query on AtomSpace",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "The Scheme code pattern to execute"
+          },
+          "atomspace": {
+            "type": "string",
+            "description": "Name of the AtomSpace to query (default: default)"
+          }
+        },
+        "required": ["pattern"]
+      }
+    }
+  ]
+}

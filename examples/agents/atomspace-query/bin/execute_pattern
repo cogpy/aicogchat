@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""
+AtomSpace Pattern Executor
+
+Validates and wraps Scheme patterns for execution on AtomSpace.
+Provides execution context and helper utilities.
+"""
+
+import json
+import os
+import re
+import sys
+
+
+def validate_pattern(pattern: str) -> dict:
+    """Validate Scheme pattern syntax."""
+    errors = []
+    warnings = []
+
+    # Check balanced parentheses
+    open_parens = pattern.count('(')
+    close_parens = pattern.count(')')
+    if open_parens != close_parens:
+        errors.append(f"Unbalanced parentheses: {open_parens} open, {close_parens} close")
+
+    # Check for common atom types
+    valid_link_types = [
+        "GetLink", "BindLink", "SatisfactionLink", "ExecutionOutputLink",
+        "InheritanceLink", "SimilarityLink", "MemberLink", "EvaluationLink",
+        "ListLink", "SetLink", "AndLink", "OrLink", "NotLink",
+        "ImplicationLink", "EquivalenceLink", "TypedVariableLink"
+    ]
+
+    valid_node_types = [
+        "ConceptNode", "PredicateNode", "VariableNode", "TypeNode",
+        "NumberNode", "SchemaNode", "GroundedSchemaNode", "AnchorNode"
+    ]
+
+    # Check for potential typos in atom types
+    words = re.findall(r'\b[A-Z][a-z]+(?:Node|Link)\b', pattern)
+    for word in words:
+        if word not in valid_link_types + valid_node_types:
+            warnings.append(f"Unknown atom type: {word}")
+
+    # Check for undefined variables
+    var_defs = re.findall(r'VariableNode\s+"([^"]+)"', pattern)
+    var_uses = re.findall(r'\(VariableNode\s+"([^"]+)"\)', pattern)
+    undefined = set(var_uses) - set(var_defs)
+    if undefined and len(undefined) == len(var_uses):
+        # All variables are undefined - might be intentional in certain patterns
+        pass  # No error
+    elif undefined:
+        warnings.append(f"Potentially undefined variables: {list(undefined)}")
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors,
+        "warnings": warnings
+    }
+
+
+def wrap_pattern_for_execution(pattern: str, atomspace: str = "default") -> dict:
+    """Wrap pattern with execution context."""
+
+    validation = validate_pattern(pattern)
+
+    # Determine the execution method based on pattern type
+    if "GetLink" in pattern or "BindLink" in pattern:
+        executor = "cog-execute!" if "GetLink" in pattern else "cog-bind"
+        is_query = True
+    elif "SatisfactionLink" in pattern:
+        executor = "cog-evaluate!"
+        is_query = True
+    else:
+        executor = "cog-execute!"
+        is_query = False
+
+    execution_code = f"""
+;; AtomSpace Pattern Execution
+;; Target AtomSpace: {atomspace}
+
+;; Load required modules
+(use-modules (opencog))
+(use-modules (opencog exec))
+
+;; Define the pattern
+(define pattern
+  {pattern})
+
+;; Execute the pattern
+(define result ({executor} pattern))
+
+;; Process results
+(cond
+  ((cog-atom? result)
+   (display "Result atom: ")
+   (display result)
+   (newline)
+   (when (cog-link? result)
+     (display "Outgoing set:\\n")
+     (for-each
+       (lambda (atom)
+         (display "  ")
+         (display atom)
+         (newline))
+       (cog-outgoing-set result))))
+  ((boolean? result)
+   (display (if result "Satisfied: #t\\n" "Not satisfied: #f\\n")))
+  (else
+   (display "Result: ")
+   (display result)
+   (newline)))
+""".strip()
+
+    # Also provide a one-liner for quick testing
+    one_liner = f"({executor} {pattern.strip()})"
+
+    return {
+        "atomspace": atomspace,
+        "pattern": pattern,
+        "validation": validation,
+        "executor": executor,
+        "is_query_pattern": is_query,
+        "execution_code": execution_code,
+        "one_liner": one_liner,
+        "cogserver_command": f'(load-from-string "{one_liner}")',
+        "help": {
+            "cog-execute!": "Executes GetLink patterns, returns SetLink of results",
+            "cog-bind": "Executes BindLink patterns, applies rewrite rules",
+            "cog-evaluate!": "Evaluates SatisfactionLink patterns, returns #t or #f"
+        }
+    }
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: execute_pattern <json_args>", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        args = json.loads(sys.argv[1])
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON arguments: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    pattern = args.get("pattern", "(GetLink)")
+    atomspace = args.get("atomspace", "default")
+
+    result = wrap_pattern_for_execution(pattern, atomspace)
+
+    output_file = os.environ.get("LLM_OUTPUT")
+    if output_file:
+        with open(output_file, "w") as f:
+            json.dump(result, f, indent=2)
+    else:
+        print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()

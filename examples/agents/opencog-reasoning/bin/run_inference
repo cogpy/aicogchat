@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""
+OpenCog Inference Runner
+
+Executes forward or backward chaining inference using the URE (Unified Rule Engine).
+This tool generates the Scheme code needed to run inference on an AtomSpace.
+"""
+
+import json
+import os
+import sys
+
+
+def generate_forward_chaining(rule_base: str, max_steps: int, focus_set: str = None) -> dict:
+    """Generate forward chaining inference code."""
+
+    focus_clause = ""
+    if focus_set:
+        focus_clause = f"""
+  ;; Focus set (optional - limits inference scope)
+  (SetLink
+    {focus_set})"""
+
+    scheme_code = f"""
+;; Forward Chaining Inference
+;; Rule Base: {rule_base}
+;; Max Steps: {max_steps}
+
+;; Load required modules
+(use-modules (opencog) (opencog exec))
+(use-modules (opencog ure))
+
+;; Define the rule base
+(define rule-base (ConceptNode "{rule_base}"))
+
+;; Configure forward chainer
+(define fc-config
+  (ExecutionOutputLink
+    (GroundedSchemaNode "scm: forward-chainer")
+    (ListLink
+      rule-base
+      (NumberNode "{max_steps}")
+      (ConceptNode "FC_ITERATION_LIMIT")
+    )
+  )
+)
+
+;; Run forward chaining
+(define fc-results
+  (cog-fc
+    rule-base
+    (SetLink)  ;; source (empty = use whole atomspace)
+    #:maximum-iterations {max_steps}
+  )
+)
+
+;; Display results
+(display "Forward Chaining Results:\\n")
+(for-each
+  (lambda (atom)
+    (display atom)
+    (newline))
+  (cog-outgoing-set fc-results))
+""".strip()
+
+    return {
+        "mode": "forward",
+        "rule_base": rule_base,
+        "max_steps": max_steps,
+        "scheme_code": scheme_code,
+        "execution_command": f"(cog-fc (ConceptNode \"{rule_base}\") (SetLink) #:maximum-iterations {max_steps})",
+        "explanation": f"Forward chaining will apply rules from '{rule_base}' up to {max_steps} iterations, deriving new conclusions from existing atoms."
+    }
+
+
+def generate_backward_chaining(rule_base: str, max_steps: int, target: str = None) -> dict:
+    """Generate backward chaining inference code."""
+
+    target_atom = target if target else "(InheritanceLink (VariableNode \"$X\") (ConceptNode \"target\"))"
+
+    scheme_code = f"""
+;; Backward Chaining Inference
+;; Rule Base: {rule_base}
+;; Max Steps: {max_steps}
+
+;; Load required modules
+(use-modules (opencog) (opencog exec))
+(use-modules (opencog ure))
+
+;; Define the rule base
+(define rule-base (ConceptNode "{rule_base}"))
+
+;; Define the target to prove
+(define target
+  {target_atom})
+
+;; Configure backward chainer
+(define bc-config
+  (ExecutionOutputLink
+    (GroundedSchemaNode "scm: backward-chainer")
+    (ListLink
+      rule-base
+      target
+      (NumberNode "{max_steps}")
+    )
+  )
+)
+
+;; Run backward chaining
+(define bc-results
+  (cog-bc
+    rule-base
+    target
+    #:maximum-iterations {max_steps}
+  )
+)
+
+;; Display results
+(display "Backward Chaining Results:\\n")
+(for-each
+  (lambda (atom)
+    (display atom)
+    (newline))
+  (cog-outgoing-set bc-results))
+""".strip()
+
+    return {
+        "mode": "backward",
+        "rule_base": rule_base,
+        "max_steps": max_steps,
+        "target": target_atom,
+        "scheme_code": scheme_code,
+        "execution_command": f"(cog-bc (ConceptNode \"{rule_base}\") target #:maximum-iterations {max_steps})",
+        "explanation": f"Backward chaining will attempt to prove the target by working backwards through rules in '{rule_base}' for up to {max_steps} iterations."
+    }
+
+
+def run_inference(mode: str, rule_base: str, max_steps: int = 100) -> dict:
+    """Main inference execution function."""
+
+    if mode.lower() == "forward":
+        return generate_forward_chaining(rule_base, max_steps)
+    elif mode.lower() == "backward":
+        return generate_backward_chaining(rule_base, max_steps)
+    else:
+        return {
+            "error": f"Unknown inference mode: {mode}",
+            "valid_modes": ["forward", "backward"],
+            "explanation": "Use 'forward' for FC (derive new facts) or 'backward' for BC (prove a target)"
+        }
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: run_inference <json_args>", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        args = json.loads(sys.argv[1])
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON arguments: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    mode = args.get("mode", "forward")
+    rule_base = args.get("rule_base", "pln-rules")
+    max_steps = args.get("max_steps", 100)
+
+    result = run_inference(mode, rule_base, max_steps)
+
+    output_file = os.environ.get("LLM_OUTPUT")
+    if output_file:
+        with open(output_file, "w") as f:
+            json.dump(result, f, indent=2)
+    else:
+        print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()

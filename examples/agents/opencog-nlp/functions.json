@@ -1,0 +1,63 @@
+{
+  "functions": [
+    {
+      "name": "parse_sentence",
+      "description": "Parse a sentence into AtomSpace representation using Link Grammar and RelEx",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "sentence": {
+            "type": "string",
+            "description": "The sentence to parse"
+          },
+          "output_level": {
+            "type": "string",
+            "enum": ["syntax", "relex", "logic"],
+            "description": "Level of analysis: syntax (Link Grammar), relex (dependency relations), logic (RelEx2Logic)"
+          }
+        },
+        "required": ["sentence"]
+      }
+    },
+    {
+      "name": "extract_knowledge",
+      "description": "Extract knowledge (entities, relations, facts) from text and convert to AtomSpace atoms",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text to extract knowledge from"
+          },
+          "extract_types": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["entities", "relations", "facts", "events"]
+            },
+            "description": "Types of knowledge to extract"
+          }
+        },
+        "required": ["text"]
+      }
+    },
+    {
+      "name": "generate_qa_pattern",
+      "description": "Generate an AtomSpace query pattern from a natural language question",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "The question to convert to a query pattern"
+          },
+          "context": {
+            "type": "string",
+            "description": "Optional context about the domain or expected answer type"
+          }
+        },
+        "required": ["question"]
+      }
+    }
+  ]
+}
