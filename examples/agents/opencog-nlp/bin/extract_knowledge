@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+"""
+Knowledge Extractor for OpenCog
+
+Extracts structured knowledge (entities, relations, facts, events) from text
+and converts to AtomSpace atom representations.
+"""
+
+import json
+import os
+import re
+import sys
+
+
+def extract_entities(text: str) -> list:
+    """Extract named entities from text (simplified NER)."""
+    entities = []
+
+    # Capitalized words (potential proper nouns)
+    capitalized = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', text)
+    for ent in capitalized:
+        entities.append({
+            "text": ent,
+            "type": "ProperNoun",
+            "atom": f'(ConceptNode "{ent}")'
+        })
+
+    # Numbers
+    numbers = re.findall(r'\b\d+(?:\.\d+)?\b', text)
+    for num in numbers:
+        entities.append({
+            "text": num,
+            "type": "Number",
+            "atom": f'(NumberNode "{num}")'
+        })
+
+    return entities
+
+
+def extract_relations(text: str) -> list:
+    """Extract relations between entities."""
+    relations = []
+
+    # Pattern: X is/are Y
+    is_pattern = re.findall(r'(\b[A-Z][a-z]+\b)\s+(?:is|are)\s+(?:a|an|the)?\s*(\b\w+\b)', text)
+    for subj, obj in is_pattern:
+        relations.append({
+            "type": "is-a",
+            "subject": subj,
+            "object": obj,
+            "atom": f"""(InheritanceLink
+  (ConceptNode "{subj}")
+  (ConceptNode "{obj}"))"""
+        })
+
+    # Pattern: X has Y
+    has_pattern = re.findall(r'(\b[A-Z][a-z]+\b)\s+(?:has|have)\s+(?:a|an|the)?\s*(\b\w+\b)', text)
+    for subj, obj in has_pattern:
+        relations.append({
+            "type": "has",
+            "subject": subj,
+            "object": obj,
+            "atom": f"""(EvaluationLink
+  (PredicateNode "has")
+  (ListLink
+    (ConceptNode "{subj}")
+    (ConceptNode "{obj}")))"""
+        })
+
+    # Pattern: X verb Y (simple SVO)
+    svo_pattern = re.findall(r'(\b[A-Z][a-z]+\b)\s+(\b[a-z]+s?\b)\s+(?:a|an|the)?\s*(\b[A-Z]?[a-z]+\b)', text)
+    for subj, verb, obj in svo_pattern:
+        if verb not in ['is', 'are', 'has', 'have', 'the', 'a', 'an']:
+            relations.append({
+                "type": "action",
+                "subject": subj,
+                "predicate": verb,
+                "object": obj,
+                "atom": f"""(EvaluationLink
+  (PredicateNode "{verb}")
+  (ListLink
+    (ConceptNode "{subj}")
+    (ConceptNode "{obj}")))"""
+            })
+
+    return relations
+
+
+def extract_facts(text: str) -> list:
+    """Extract factual statements as atoms."""
+    facts = []
+
+    # Split into sentences
+    sentences = re.split(r'[.!?]+', text)
+
+    for sent in sentences:
+        sent = sent.strip()
+        if not sent:
+            continue
+
+        words = sent.split()
+        if len(words) >= 2:
+            facts.append({
+                "sentence": sent,
+                "atom": f"""(SentenceNode "{sent}")""",
+                "interpretation": f"""(InterpretationNode "fact-{len(facts)+1}")"""
+            })
+
+    return facts
+
+
+def extract_events(text: str) -> list:
+    """Extract events (actions with temporal/causal structure)."""
+    events = []
+
+    # Look for past tense verbs as potential events
+    past_tense = re.findall(r'(\b[A-Z][a-z]+\b)\s+(\b\w+ed\b)\s+(.+?)(?:[.!?]|$)', text)
+
+    for subj, verb, rest in past_tense:
+        events.append({
+            "type": "past_event",
+            "agent": subj,
+            "action": verb,
+            "details": rest.strip(),
+            "atom": f"""(EvaluationLink
+  (PredicateNode "{verb}")
+  (ListLink
+    (ConceptNode "{subj}")
+    (ConceptNode "{rest.strip().split()[0] if rest.strip() else 'something'}")))"""
+        })
+
+    return events
+
+
+def extract_knowledge(text: str, extract_types: list = None) -> dict:
+    """Main knowledge extraction function."""
+
+    if extract_types is None:
+        extract_types = ["entities", "relations", "facts"]
+
+    result = {
+        "input_text": text,
+        "extractions": {}
+    }
+
+    scheme_atoms = []
+
+    if "entities" in extract_types:
+        entities = extract_entities(text)
+        result["extractions"]["entities"] = entities
+        scheme_atoms.extend([e["atom"] for e in entities])
+
+    if "relations" in extract_types:
+        relations = extract_relations(text)
+        result["extractions"]["relations"] = relations
+        scheme_atoms.extend([r["atom"] for r in relations])
+
+    if "facts" in extract_types:
+        facts = extract_facts(text)
+        result["extractions"]["facts"] = facts
+        scheme_atoms.extend([f["atom"] for f in facts])
+
+    if "events" in extract_types:
+        events = extract_events(text)
+        result["extractions"]["events"] = events
+        scheme_atoms.extend([e["atom"] for e in events])
+
+    # Combine into loadable Scheme code
+    result["scheme_code"] = f"""
+;; Knowledge extracted from text
+;; Source: "{text[:50]}..."
+
+;; Load into AtomSpace
+{"".join(scheme_atoms)}
+""".strip()
+
+    result["summary"] = {
+        "entities_found": len(result["extractions"].get("entities", [])),
+        "relations_found": len(result["extractions"].get("relations", [])),
+        "facts_found": len(result["extractions"].get("facts", [])),
+        "events_found": len(result["extractions"].get("events", []))
+    }
+
+    return result
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: extract_knowledge <json_args>", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        args = json.loads(sys.argv[1])
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON arguments: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    text = args.get("text", "")
+    extract_types = args.get("extract_types", ["entities", "relations", "facts"])
+
+    result = extract_knowledge(text, extract_types)
+
+    output_file = os.environ.get("LLM_OUTPUT")
+    if output_file:
+        with open(output_file, "w") as f:
+            json.dump(result, f, indent=2)
+    else:
+        print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()

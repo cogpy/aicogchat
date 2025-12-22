@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""
+PLN Deduction TruthValue Calculator
+
+Calculates the TruthValue of a deduction conclusion from two premises using
+PLN's deduction formula.
+
+Deduction Rule: A->B, B->C |- A->C
+
+TruthValue Formulas:
+- sAC = sAB * sBC (strength is product of premise strengths)
+- Confidence uses weakest link principle with conjunction
+"""
+
+import json
+import os
+import sys
+
+
+def calculate_deduction_tv(s1: float, c1: float, s2: float, c2: float) -> dict:
+    """
+    Calculate PLN deduction TruthValue.
+
+    For deduction A->B, B->C |- A->C:
+    - strength = s(A->B) * s(B->C)
+    - confidence = c(A->B) * c(B->C) * strength
+
+    The PLN book provides more sophisticated formulas, but this
+    implements the basic deduction truth value calculation.
+    """
+    # Basic deduction strength calculation
+    conclusion_strength = s1 * s2
+
+    # Confidence decreases based on chain length and premise uncertainty
+    # Using a simplified formula based on PLN deduction
+    conclusion_confidence = c1 * c2 * (1 - abs(s1 - s2) * 0.5)
+
+    # Clamp values to [0, 1]
+    conclusion_strength = max(0.0, min(1.0, conclusion_strength))
+    conclusion_confidence = max(0.0, min(1.0, conclusion_confidence))
+
+    return {
+        "strength": round(conclusion_strength, 4),
+        "confidence": round(conclusion_confidence, 4),
+        "formula_used": "s_conclusion = s1 * s2; c_conclusion = c1 * c2 * (1 - |s1-s2| * 0.5)",
+        "explanation": f"Given premises with TV <{s1}, {c1}> and <{s2}, {c2}>, "
+                       f"the deduction conclusion has TV <{round(conclusion_strength, 4)}, {round(conclusion_confidence, 4)}>"
+    }
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: pln_deduction <json_args>", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        args = json.loads(sys.argv[1])
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON arguments: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    s1 = args.get("premise1_strength", 0.5)
+    c1 = args.get("premise1_confidence", 0.5)
+    s2 = args.get("premise2_strength", 0.5)
+    c2 = args.get("premise2_confidence", 0.5)
+
+    result = calculate_deduction_tv(s1, c1, s2, c2)
+
+    # Write output to LLM_OUTPUT file if specified
+    output_file = os.environ.get("LLM_OUTPUT")
+    if output_file:
+        with open(output_file, "w") as f:
+            json.dump(result, f, indent=2)
+    else:
+        print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()

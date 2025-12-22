@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+"""
+URE BindLink Rule Generator
+
+Generates URE (Unified Rule Engine) BindLink rules from natural language descriptions.
+The generated rules can be used with OpenCog's forward and backward chaining.
+"""
+
+import json
+import os
+import sys
+
+
+# Common pattern templates
+PATTERN_TEMPLATES = {
+    "inheritance": """(BindLink
+  (VariableList
+    (TypedVariableLink
+      (VariableNode "$A")
+      (TypeNode "ConceptNode"))
+    (TypedVariableLink
+      (VariableNode "$B")
+      (TypeNode "ConceptNode")))
+  (AndLink
+    (InheritanceLink
+      (VariableNode "$A")
+      (VariableNode "$B")))
+  (ExecutionOutputLink
+    (GroundedSchemaNode "scm: {callback}")
+    (ListLink
+      (VariableNode "$A")
+      (VariableNode "$B"))))""",
+
+    "evaluation": """(BindLink
+  (VariableList
+    (TypedVariableLink
+      (VariableNode "$P")
+      (TypeNode "PredicateNode"))
+    (TypedVariableLink
+      (VariableNode "$X")
+      (TypeNode "ConceptNode")))
+  (AndLink
+    (EvaluationLink
+      (VariableNode "$P")
+      (ListLink
+        (VariableNode "$X"))))
+  (ExecutionOutputLink
+    (GroundedSchemaNode "scm: {callback}")
+    (ListLink
+      (VariableNode "$P")
+      (VariableNode "$X"))))""",
+
+    "transitive": """(BindLink
+  (VariableList
+    (TypedVariableLink
+      (VariableNode "$A")
+      (TypeNode "ConceptNode"))
+    (TypedVariableLink
+      (VariableNode "$B")
+      (TypeNode "ConceptNode"))
+    (TypedVariableLink
+      (VariableNode "$C")
+      (TypeNode "ConceptNode")))
+  (AndLink
+    (InheritanceLink
+      (VariableNode "$A")
+      (VariableNode "$B"))
+    (InheritanceLink
+      (VariableNode "$B")
+      (VariableNode "$C")))
+  (InheritanceLink
+    (VariableNode "$A")
+    (VariableNode "$C")))""",
+
+    "similarity": """(BindLink
+  (VariableList
+    (TypedVariableLink
+      (VariableNode "$A")
+      (TypeNode "ConceptNode"))
+    (TypedVariableLink
+      (VariableNode "$B")
+      (TypeNode "ConceptNode")))
+  (AndLink
+    (SimilarityLink
+      (VariableNode "$A")
+      (VariableNode "$B")))
+  (ExecutionOutputLink
+    (GroundedSchemaNode "scm: {callback}")
+    (ListLink
+      (VariableNode "$A")
+      (VariableNode "$B"))))""",
+
+    "member": """(BindLink
+  (VariableList
+    (TypedVariableLink
+      (VariableNode "$M")
+      (TypeNode "ConceptNode"))
+    (TypedVariableLink
+      (VariableNode "$S")
+      (TypeNode "ConceptNode")))
+  (AndLink
+    (MemberLink
+      (VariableNode "$M")
+      (VariableNode "$S")))
+  (ExecutionOutputLink
+    (GroundedSchemaNode "scm: {callback}")
+    (ListLink
+      (VariableNode "$M")
+      (VariableNode "$S"))))""",
+
+    "implication": """(BindLink
+  (VariableList
+    (TypedVariableLink
+      (VariableNode "$P")
+      (TypeNode "PredicateNode"))
+    (TypedVariableLink
+      (VariableNode "$Q")
+      (TypeNode "PredicateNode")))
+  (AndLink
+    (ImplicationLink
+      (VariableNode "$P")
+      (VariableNode "$Q")))
+  (ExecutionOutputLink
+    (GroundedSchemaNode "scm: {callback}")
+    (ListLink
+      (VariableNode "$P")
+      (VariableNode "$Q"))))"""
+}
+
+
+def detect_pattern_type(description: str) -> str:
+    """Detect the pattern type from natural language description."""
+    description_lower = description.lower()
+
+    if any(word in description_lower for word in ["transitive", "chain", "a->b->c"]):
+        return "transitive"
+    elif any(word in description_lower for word in ["inherit", "is-a", "subtype", "parent"]):
+        return "inheritance"
+    elif any(word in description_lower for word in ["similar", "like", "resembl"]):
+        return "similarity"
+    elif any(word in description_lower for word in ["member", "belongs", "element", "in set"]):
+        return "member"
+    elif any(word in description_lower for word in ["imply", "implies", "if-then", "conditional"]):
+        return "implication"
+    elif any(word in description_lower for word in ["predicate", "property", "attribute", "eval"]):
+        return "evaluation"
+    else:
+        return "inheritance"  # default
+
+
+def generate_bind_rule(rule_name: str, pattern_description: str, conclusion_type: str = None) -> dict:
+    """Generate a URE BindLink rule based on description."""
+
+    pattern_type = detect_pattern_type(pattern_description)
+
+    if conclusion_type:
+        conclusion_type_lower = conclusion_type.lower()
+        if "inherit" in conclusion_type_lower:
+            pattern_type = "inheritance"
+        elif "transitive" in conclusion_type_lower:
+            pattern_type = "transitive"
+        elif "similar" in conclusion_type_lower:
+            pattern_type = "similarity"
+
+    callback_name = f"{rule_name.replace('-', '_')}_callback"
+    template = PATTERN_TEMPLATES.get(pattern_type, PATTERN_TEMPLATES["inheritance"])
+
+    bind_link = template.format(callback=callback_name)
+
+    # Generate the rule definition for URE
+    rule_definition = f"""
+;; Rule: {rule_name}
+;; Description: {pattern_description}
+;; Pattern Type: {pattern_type}
+
+(define {rule_name}
+{bind_link})
+
+;; Add to rule base
+(define {rule_name}-rule
+  (MemberLink (stv 1 1)
+    {rule_name}
+    (ConceptNode "rule-base")))
+"""
+
+    return {
+        "rule_name": rule_name,
+        "pattern_type": pattern_type,
+        "bind_link": bind_link,
+        "full_definition": rule_definition.strip(),
+        "callback_name": callback_name,
+        "usage": f"To execute: (cog-bind {rule_name})",
+        "explanation": f"Generated a {pattern_type} pattern rule that matches {pattern_description}"
+    }
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: create_bind_rule <json_args>", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        args = json.loads(sys.argv[1])
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON arguments: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    rule_name = args.get("rule_name", "custom-rule")
+    pattern_description = args.get("pattern_description", "match inheritance links")
+    conclusion_type = args.get("conclusion_type")
+
+    result = generate_bind_rule(rule_name, pattern_description, conclusion_type)
+
+    output_file = os.environ.get("LLM_OUTPUT")
+    if output_file:
+        with open(output_file, "w") as f:
+            json.dump(result, f, indent=2)
+    else:
+        print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()

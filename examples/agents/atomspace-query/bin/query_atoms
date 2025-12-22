@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""
+AtomSpace Atom Query Tool
+
+Queries AtomSpace for atoms matching specified criteria.
+Generates Scheme code for atom retrieval.
+"""
+
+import json
+import os
+import sys
+
+
+# Common atom types in OpenCog
+ATOM_TYPES = {
+    "nodes": [
+        "ConceptNode", "PredicateNode", "SchemaNode", "GroundedSchemaNode",
+        "NumberNode", "WordNode", "WordInstanceNode", "SentenceNode",
+        "TypeNode", "VariableNode", "GlobNode", "AnchorNode"
+    ],
+    "links": [
+        "InheritanceLink", "SimilarityLink", "MemberLink", "EvaluationLink",
+        "ListLink", "SetLink", "AndLink", "OrLink", "NotLink",
+        "ImplicationLink", "EquivalenceLink", "BindLink", "GetLink",
+        "SatisfactionLink", "ExecutionOutputLink", "TypedVariableLink"
+    ]
+}
+
+
+def generate_atom_query(atom_type: str, atom_name: str = None, limit: int = 10) -> dict:
+    """Generate Scheme code to query atoms."""
+
+    # Validate atom type
+    all_types = ATOM_TYPES["nodes"] + ATOM_TYPES["links"]
+    is_valid = atom_type in all_types
+
+    if atom_name and '*' not in atom_name:
+        # Exact match query
+        if atom_type.endswith("Node"):
+            scheme_code = f"""
+;; Query for specific atom
+(define result
+  (cog-node '{atom_type} "{atom_name}"))
+
+;; Check if exists
+(if result
+    (begin
+      (display "Found: ")
+      (display result)
+      (newline)
+      (display "TruthValue: ")
+      (display (cog-tv result))
+      (newline))
+    (display "Atom not found\\n"))
+""".strip()
+        else:
+            scheme_code = f"""
+;; For links, use pattern matching
+(define result
+  (cog-get-atoms '{atom_type}))
+
+;; Display first {limit} results
+(define (show-atoms atoms count)
+  (if (and (not (null? atoms)) (> count 0))
+      (begin
+        (display (car atoms))
+        (newline)
+        (show-atoms (cdr atoms) (- count 1)))))
+
+(show-atoms result {limit})
+""".strip()
+    else:
+        # Type-based query (get all of type)
+        scheme_code = f"""
+;; Query all atoms of type {atom_type}
+(define all-atoms (cog-get-atoms '{atom_type}))
+
+;; Count total
+(define total-count (length all-atoms))
+(display (format #f "Total {atom_type} atoms: ~a\\n" total-count))
+
+;; Display first {limit} results
+(define (show-atoms atoms count)
+  (if (and (not (null? atoms)) (> count 0))
+      (begin
+        (display (car atoms))
+        (newline)
+        (show-atoms (cdr atoms) (- count 1)))))
+
+(display "\\nResults:\\n")
+(show-atoms all-atoms {limit})
+""".strip()
+
+    # Build result
+    result = {
+        "atom_type": atom_type,
+        "atom_name": atom_name,
+        "type_category": "node" if atom_type.endswith("Node") else "link",
+        "is_valid_type": is_valid,
+        "scheme_code": scheme_code,
+        "execution_hint": f"Run in Scheme shell: guile -l your-atomspace.scm -c '...'",
+        "limit": limit
+    }
+
+    if not is_valid:
+        result["warning"] = f"'{atom_type}' may not be a standard OpenCog atom type"
+        result["known_node_types"] = ATOM_TYPES["nodes"]
+        result["known_link_types"] = ATOM_TYPES["links"]
+
+    return result
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: query_atoms <json_args>", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        args = json.loads(sys.argv[1])
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON arguments: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    atom_type = args.get("atom_type", "ConceptNode")
+    atom_name = args.get("atom_name")
+    limit = args.get("limit", 10)
+
+    result = generate_atom_query(atom_type, atom_name, limit)
+
+    output_file = os.environ.get("LLM_OUTPUT")
+    if output_file:
+        with open(output_file, "w") as f:
+            json.dump(result, f, indent=2)
+    else:
+        print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()

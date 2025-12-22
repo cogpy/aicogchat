@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""
+Natural Language to AtomSpace Query Converter
+
+Converts natural language questions into AtomSpace query patterns
+using GetLink, BindLink, or SatisfactionLink.
+"""
+
+import json
+import os
+import re
+import sys
+
+
+# Pattern templates for different query types
+QUERY_PATTERNS = {
+    "find_subtypes": {
+        "keywords": ["what are", "list all", "find all", "subtypes", "children", "instances"],
+        "template": """(GetLink
+  (TypedVariableLink
+    (VariableNode "$X")
+    (TypeNode "ConceptNode"))
+  (InheritanceLink
+    (VariableNode "$X")
+    (ConceptNode "{parent}")))"""
+    },
+    "find_supertypes": {
+        "keywords": ["is a", "parent of", "supertype", "category of"],
+        "template": """(GetLink
+  (TypedVariableLink
+    (VariableNode "$X")
+    (TypeNode "ConceptNode"))
+  (InheritanceLink
+    (ConceptNode "{child}")
+    (VariableNode "$X")))"""
+    },
+    "find_relations": {
+        "keywords": ["related to", "relationships", "connections", "links"],
+        "template": """(GetLink
+  (VariableList
+    (TypedVariableLink
+      (VariableNode "$R")
+      (TypeNode "PredicateNode"))
+    (TypedVariableLink
+      (VariableNode "$Y")
+      (TypeNode "ConceptNode")))
+  (EvaluationLink
+    (VariableNode "$R")
+    (ListLink
+      (ConceptNode "{subject}")
+      (VariableNode "$Y"))))"""
+    },
+    "find_similar": {
+        "keywords": ["similar to", "like", "resembles"],
+        "template": """(GetLink
+  (TypedVariableLink
+    (VariableNode "$X")
+    (TypeNode "ConceptNode"))
+  (SimilarityLink
+    (ConceptNode "{concept}")
+    (VariableNode "$X")))"""
+    },
+    "find_members": {
+        "keywords": ["members of", "elements of", "in set", "belongs to"],
+        "template": """(GetLink
+  (TypedVariableLink
+    (VariableNode "$M")
+    (TypeNode "ConceptNode"))
+  (MemberLink
+    (VariableNode "$M")
+    (ConceptNode "{set}")))"""
+    },
+    "check_exists": {
+        "keywords": ["is", "does", "exist", "check if"],
+        "template": """(SatisfactionLink
+  (InheritanceLink
+    (ConceptNode "{subject}")
+    (ConceptNode "{object}")))"""
+    }
+}
+
+
+def extract_concepts(query: str) -> list:
+    """Extract potential concept names from query."""
+    # Remove common words
+    stopwords = {"what", "are", "the", "all", "find", "list", "is", "a", "an",
+                 "of", "to", "in", "that", "which", "for", "with", "does", "do",
+                 "have", "has", "related", "similar", "like"}
+
+    words = re.findall(r'\b[A-Za-z][A-Za-z0-9_-]*\b', query)
+    concepts = [w for w in words if w.lower() not in stopwords and len(w) > 1]
+
+    return concepts
+
+
+def detect_query_type(query: str) -> str:
+    """Detect what type of query based on keywords."""
+    query_lower = query.lower()
+
+    for query_type, info in QUERY_PATTERNS.items():
+        for keyword in info["keywords"]:
+            if keyword in query_lower:
+                return query_type
+
+    return "find_relations"  # default
+
+
+def generate_query(query: str, query_type: str = "get") -> dict:
+    """Convert natural language to AtomSpace query."""
+
+    detected_type = detect_query_type(query)
+    concepts = extract_concepts(query)
+
+    pattern_info = QUERY_PATTERNS[detected_type]
+    template = pattern_info["template"]
+
+    # Fill in template with extracted concepts
+    if detected_type == "find_subtypes" and concepts:
+        scheme_query = template.format(parent=concepts[0])
+    elif detected_type == "find_supertypes" and concepts:
+        scheme_query = template.format(child=concepts[0])
+    elif detected_type == "find_relations" and concepts:
+        scheme_query = template.format(subject=concepts[0])
+    elif detected_type == "find_similar" and concepts:
+        scheme_query = template.format(concept=concepts[0])
+    elif detected_type == "find_members" and concepts:
+        scheme_query = template.format(set=concepts[0])
+    elif detected_type == "check_exists" and len(concepts) >= 2:
+        scheme_query = template.format(subject=concepts[0], object=concepts[1])
+    else:
+        scheme_query = template
+
+    # Wrap in appropriate executor based on query_type
+    if query_type == "bind":
+        execution_code = f"""
+;; BindLink version - executes pattern and returns results
+(define query-result
+  (cog-bind
+    {scheme_query.replace('GetLink', 'BindLink')}))
+""".strip()
+    elif query_type == "satisfy":
+        execution_code = f"""
+;; SatisfactionLink - returns #t or #f
+(define satisfied?
+  (cog-evaluate!
+    {scheme_query.replace('GetLink', 'SatisfactionLink')}))
+(display (if satisfied? "Yes" "No"))
+""".strip()
+    else:  # get
+        execution_code = f"""
+;; GetLink query - retrieves matching atoms
+(define query-result
+  (cog-execute!
+    {scheme_query}))
+
+;; Display results
+(display "Query Results:\\n")
+(for-each
+  (lambda (atom)
+    (display atom)
+    (newline))
+  (cog-outgoing-set query-result))
+""".strip()
+
+    return {
+        "natural_query": query,
+        "detected_pattern": detected_type,
+        "extracted_concepts": concepts,
+        "query_type": query_type,
+        "scheme_query": scheme_query,
+        "execution_code": execution_code,
+        "explanation": f"Detected '{detected_type}' pattern. Using concepts: {concepts}"
+    }
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: create_query <json_args>", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        args = json.loads(sys.argv[1])
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON arguments: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    query = args.get("query", "")
+    query_type = args.get("query_type", "get")
+
+    result = generate_query(query, query_type)
+
+    output_file = os.environ.get("LLM_OUTPUT")
+    if output_file:
+        with open(output_file, "w") as f:
+            json.dump(result, f, indent=2)
+    else:
+        print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()

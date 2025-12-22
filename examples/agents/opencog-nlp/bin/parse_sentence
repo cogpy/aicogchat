@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""
+OpenCog Sentence Parser
+
+Generates AtomSpace representations of sentences using the OpenCog NLP pipeline:
+Link Grammar → RelEx → RelEx2Logic
+
+This tool generates the Scheme code that would be produced by the NLP pipeline.
+"""
+
+import json
+import os
+import re
+import sys
+
+
+def tokenize(sentence: str) -> list:
+    """Simple tokenization."""
+    # Remove punctuation from words but keep track of sentence-final punctuation
+    words = re.findall(r'\b\w+\b', sentence)
+    return words
+
+
+def generate_syntax_parse(sentence: str, words: list) -> str:
+    """Generate Link Grammar style syntax representation."""
+
+    scheme_code = f"""
+;; Link Grammar Syntax Parse
+;; Sentence: "{sentence}"
+
+;; Sentence node
+(SentenceNode "sentence@1")
+
+;; Word instances"""
+
+    for i, word in enumerate(words):
+        scheme_code += f"""
+(WordInstanceNode "{word}@{i+1}")
+(ReferenceLink
+  (WordInstanceNode "{word}@{i+1}")
+  (WordNode "{word.lower()}"))
+(WordSequenceLink
+  (WordInstanceNode "{word}@{i+1}")
+  (NumberNode "{i+1}"))"""
+
+    scheme_code += """
+
+;; Link Grammar links (simplified)
+;; Full parsing requires the Link Grammar library"""
+
+    return scheme_code.strip()
+
+
+def generate_relex_parse(sentence: str, words: list) -> str:
+    """Generate RelEx dependency relation representation."""
+
+    scheme_code = f"""
+;; RelEx Dependency Relations
+;; Sentence: "{sentence}"
+
+;; Base parse structure
+(ParseNode "parse@1")
+(ParseLink
+  (ParseNode "parse@1")
+  (SentenceNode "sentence@1"))
+"""
+
+    # Simple heuristic for dependency relations
+    # In real usage, this would come from RelEx
+    if len(words) >= 2:
+        # Assume first word might be subject, second might be verb
+        if len(words) >= 3:
+            scheme_code += f"""
+;; Subject relation (simplified)
+(EvaluationLink
+  (PredicateNode "_subj")
+  (ListLink
+    (WordInstanceNode "{words[1]}@2")
+    (WordInstanceNode "{words[0]}@1")))
+"""
+            if len(words) >= 4:
+                scheme_code += f"""
+;; Object relation (simplified)
+(EvaluationLink
+  (PredicateNode "_obj")
+  (ListLink
+    (WordInstanceNode "{words[1]}@2")
+    (WordInstanceNode "{words[-1]}@{len(words)}")))
+"""
+
+    scheme_code += """
+;; Note: Full RelEx parsing requires the RelEx server
+;; These are simplified example relations"""
+
+    return scheme_code.strip()
+
+
+def generate_logic_parse(sentence: str, words: list) -> str:
+    """Generate RelEx2Logic semantic representation."""
+
+    scheme_code = f"""
+;; RelEx2Logic Semantic Representation
+;; Sentence: "{sentence}"
+
+;; Interpretation node
+(InterpretationNode "interp@1")
+(InterpretationLink
+  (InterpretationNode "interp@1")
+  (ParseNode "parse@1"))
+"""
+
+    # Generate semantic atoms based on sentence structure
+    if len(words) >= 3:
+        # Simple SVO pattern: Subject Verb Object
+        subject = words[0]
+        verb = words[1] if len(words) > 1 else "be"
+        obj = words[-1] if len(words) > 2 else ""
+
+        scheme_code += f"""
+;; Semantic predicate-argument structure
+(EvaluationLink (stv 1 0.9)
+  (PredicateNode "{verb}")
+  (ListLink
+    (ConceptNode "{subject}")"""
+
+        if obj and obj != subject:
+            scheme_code += f"""
+    (ConceptNode "{obj}")"""
+
+        scheme_code += """))
+
+;; Concept definitions"""
+        for word in set(words):
+            scheme_code += f"""
+(ConceptNode "{word}")"""
+
+    scheme_code += """
+
+;; Note: Full RelEx2Logic requires the OpenCog NLP pipeline
+;; This is a simplified semantic representation"""
+
+    return scheme_code.strip()
+
+
+def parse_sentence(sentence: str, output_level: str = "logic") -> dict:
+    """Parse sentence and generate AtomSpace representation."""
+
+    words = tokenize(sentence)
+
+    result = {
+        "sentence": sentence,
+        "tokens": words,
+        "word_count": len(words),
+        "output_level": output_level
+    }
+
+    if output_level == "syntax":
+        result["scheme_code"] = generate_syntax_parse(sentence, words)
+        result["description"] = "Link Grammar syntactic parse with word nodes and sequence links"
+    elif output_level == "relex":
+        result["scheme_code"] = generate_relex_parse(sentence, words)
+        result["description"] = "RelEx dependency relations (_subj, _obj, etc.)"
+    else:  # logic
+        result["scheme_code"] = generate_logic_parse(sentence, words)
+        result["description"] = "RelEx2Logic semantic representation with EvaluationLinks"
+
+    result["pipeline_stages"] = {
+        "syntax": "Link Grammar - syntactic structure",
+        "relex": "RelEx - dependency relations",
+        "logic": "RelEx2Logic - semantic atoms"
+    }
+
+    return result
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: parse_sentence <json_args>", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        args = json.loads(sys.argv[1])
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON arguments: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    sentence = args.get("sentence", "")
+    output_level = args.get("output_level", "logic")
+
+    result = parse_sentence(sentence, output_level)
+
+    output_file = os.environ.get("LLM_OUTPUT")
+    if output_file:
+        with open(output_file, "w") as f:
+            json.dump(result, f, indent=2)
+    else:
+        print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()

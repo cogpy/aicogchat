@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""
+Question-Answering Pattern Generator
+
+Converts natural language questions into AtomSpace query patterns
+that can be used to find answers in a knowledge base.
+"""
+
+import json
+import os
+import re
+import sys
+
+
+# Question type patterns and their corresponding query templates
+QUESTION_PATTERNS = {
+    "what_is": {
+        "patterns": [r"what is (?:a |an |the )?(\w+)", r"what are (\w+)"],
+        "template": """(GetLink
+  (TypedVariableLink
+    (VariableNode "$answer")
+    (TypeNode "ConceptNode"))
+  (InheritanceLink
+    (ConceptNode "{subject}")
+    (VariableNode "$answer")))""",
+        "description": "Find what category/type something belongs to"
+    },
+    "what_has": {
+        "patterns": [r"what (?:does|do) (\w+) have", r"what has (\w+)"],
+        "template": """(GetLink
+  (TypedVariableLink
+    (VariableNode "$property")
+    (TypeNode "ConceptNode"))
+  (EvaluationLink
+    (PredicateNode "has")
+    (ListLink
+      (ConceptNode "{subject}")
+      (VariableNode "$property"))))""",
+        "description": "Find properties/attributes of something"
+    },
+    "who_is": {
+        "patterns": [r"who is (\w+)", r"who are (\w+)"],
+        "template": """(GetLink
+  (TypedVariableLink
+    (VariableNode "$identity")
+    (TypeNode "ConceptNode"))
+  (OrLink
+    (InheritanceLink
+      (ConceptNode "{subject}")
+      (VariableNode "$identity"))
+    (EvaluationLink
+      (PredicateNode "identity")
+      (ListLink
+        (ConceptNode "{subject}")
+        (VariableNode "$identity")))))""",
+        "description": "Find identity/role of a person"
+    },
+    "where_is": {
+        "patterns": [r"where is (\w+)", r"where are (\w+)"],
+        "template": """(GetLink
+  (TypedVariableLink
+    (VariableNode "$location")
+    (TypeNode "ConceptNode"))
+  (EvaluationLink
+    (PredicateNode "located-at")
+    (ListLink
+      (ConceptNode "{subject}")
+      (VariableNode "$location"))))""",
+        "description": "Find location of something"
+    },
+    "when_did": {
+        "patterns": [r"when did (\w+) (\w+)", r"when was (\w+)"],
+        "template": """(GetLink
+  (TypedVariableLink
+    (VariableNode "$time")
+    (TypeNode "TimeNode"))
+  (AtTimeLink
+    (EvaluationLink
+      (PredicateNode "{action}")
+      (ListLink
+        (ConceptNode "{subject}")))
+    (VariableNode "$time")))""",
+        "description": "Find when something happened"
+    },
+    "how_many": {
+        "patterns": [r"how many (\w+)", r"how much (\w+)"],
+        "template": """(GetLink
+  (TypedVariableLink
+    (VariableNode "$count")
+    (TypeNode "NumberNode"))
+  (EvaluationLink
+    (PredicateNode "count")
+    (ListLink
+      (ConceptNode "{subject}")
+      (VariableNode "$count"))))""",
+        "description": "Find quantity/count of something"
+    },
+    "why_does": {
+        "patterns": [r"why does (\w+) (\w+)", r"why did (\w+)"],
+        "template": """(GetLink
+  (TypedVariableLink
+    (VariableNode "$reason")
+    (TypeNode "ConceptNode"))
+  (ImplicationLink
+    (VariableNode "$reason")
+    (EvaluationLink
+      (PredicateNode "{action}")
+      (ListLink
+        (ConceptNode "{subject}")))))""",
+        "description": "Find reason/cause for something"
+    },
+    "is_it_true": {
+        "patterns": [r"is (\w+) (?:a |an )?(\w+)", r"does (\w+) (\w+)"],
+        "template": """(SatisfactionLink
+  (InheritanceLink
+    (ConceptNode "{subject}")
+    (ConceptNode "{object}")))""",
+        "description": "Check if a statement is true"
+    },
+    "list_all": {
+        "patterns": [r"list (?:all )?(\w+)", r"show (?:all )?(\w+)"],
+        "template": """(GetLink
+  (TypedVariableLink
+    (VariableNode "$X")
+    (TypeNode "ConceptNode"))
+  (InheritanceLink
+    (VariableNode "$X")
+    (ConceptNode "{category}")))""",
+        "description": "List all instances of a category"
+    }
+}
+
+
+def detect_question_type(question: str) -> tuple:
+    """Detect question type and extract key elements."""
+    question_lower = question.lower().strip().rstrip('?')
+
+    for qtype, info in QUESTION_PATTERNS.items():
+        for pattern in info["patterns"]:
+            match = re.search(pattern, question_lower)
+            if match:
+                groups = match.groups()
+                return qtype, groups, info
+
+    # Default to generic query
+    words = question_lower.split()
+    return "generic", tuple(words[-2:]) if len(words) >= 2 else tuple(words), {
+        "template": """(GetLink
+  (VariableNode "$answer")
+  (EvaluationLink
+    (PredicateNode "related-to")
+    (ListLink
+      (ConceptNode "{subject}")
+      (VariableNode "$answer"))))""",
+        "description": "Generic query for related information"
+    }
+
+
+def generate_qa_pattern(question: str, context: str = None) -> dict:
+    """Generate AtomSpace query pattern from question."""
+
+    qtype, extracted, info = detect_question_type(question)
+
+    # Fill in template with extracted elements
+    template = info["template"]
+
+    # Build substitution dictionary
+    substitutions = {"subject": extracted[0] if extracted else "unknown"}
+    if len(extracted) > 1:
+        substitutions["object"] = extracted[1]
+        substitutions["action"] = extracted[1]
+        substitutions["category"] = extracted[0]
+
+    # Apply substitutions
+    query_pattern = template
+    for key, value in substitutions.items():
+        query_pattern = query_pattern.replace("{" + key + "}", value)
+
+    # Generate execution code
+    if "SatisfactionLink" in query_pattern:
+        execution_code = f"""
+;; Boolean query - check if true
+(define result (cog-evaluate! {query_pattern}))
+(if result
+    (display "Yes, this is true.\\n")
+    (display "No evidence found for this.\\n"))
+"""
+    else:
+        execution_code = f"""
+;; Query for answers
+(define answers (cog-execute! {query_pattern}))
+
+(display "Answers found:\\n")
+(for-each
+  (lambda (atom)
+    (display "  - ")
+    (display (cog-name atom))
+    (newline))
+  (cog-outgoing-set answers))
+"""
+
+    result = {
+        "question": question,
+        "question_type": qtype,
+        "extracted_elements": list(extracted),
+        "pattern_description": info.get("description", "Query pattern"),
+        "query_pattern": query_pattern,
+        "execution_code": execution_code.strip(),
+        "is_boolean_query": "SatisfactionLink" in query_pattern
+    }
+
+    if context:
+        result["context"] = context
+        result["context_note"] = "Context can be used to refine the query pattern"
+
+    # Add alternative patterns
+    result["alternative_patterns"] = {
+        "broader_search": query_pattern.replace("ConceptNode", "Node"),
+        "with_truth_value": query_pattern.replace("(GetLink", "(GetLink\n  ;; With minimum truth value\n  (GreaterThanLink (StrengthOfLink <pattern>) (NumberNode \"0.5\"))")
+    }
+
+    return result
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: generate_qa_pattern <json_args>", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        args = json.loads(sys.argv[1])
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON arguments: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    question = args.get("question", "")
+    context = args.get("context")
+
+    result = generate_qa_pattern(question, context)
+
+    output_file = os.environ.get("LLM_OUTPUT")
+    if output_file:
+        with open(output_file, "w") as f:
+            json.dump(result, f, indent=2)
+    else:
+        print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    main()
