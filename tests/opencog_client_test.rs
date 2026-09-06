@@ -13,9 +13,7 @@ use serde_json::{json, Value};
 #[test]
 fn test_opencog_build_chat_completions_body_basic() {
     // Simulate the body building logic from opencog.rs
-    let messages: Vec<Value> = vec![
-        json!({"role": "user", "content": "Hello, OpenCog!"}),
-    ];
+    let messages: Vec<Value> = vec![json!({"role": "user", "content": "Hello, OpenCog!"})];
 
     let body = json!({
         "model": "opencog-chat",
@@ -55,29 +53,25 @@ fn test_opencog_build_chat_completions_body_with_options() {
 
 #[test]
 fn test_opencog_build_chat_completions_body_with_tools() {
-    let messages: Vec<Value> = vec![
-        json!({"role": "user", "content": "Calculate PLN deduction"}),
-    ];
+    let messages: Vec<Value> = vec![json!({"role": "user", "content": "Calculate PLN deduction"})];
 
-    let tools: Vec<Value> = vec![
-        json!({
-            "type": "function",
-            "function": {
-                "name": "pln_deduction",
-                "description": "Calculate PLN deduction TruthValue",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "premise1_strength": {"type": "number"},
-                        "premise1_confidence": {"type": "number"},
-                        "premise2_strength": {"type": "number"},
-                        "premise2_confidence": {"type": "number"}
-                    },
-                    "required": ["premise1_strength", "premise1_confidence", "premise2_strength", "premise2_confidence"]
-                }
+    let tools: Vec<Value> = vec![json!({
+        "type": "function",
+        "function": {
+            "name": "pln_deduction",
+            "description": "Calculate PLN deduction TruthValue",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "premise1_strength": {"type": "number"},
+                    "premise1_confidence": {"type": "number"},
+                    "premise2_strength": {"type": "number"},
+                    "premise2_confidence": {"type": "number"}
+                },
+                "required": ["premise1_strength", "premise1_confidence", "premise2_strength", "premise2_confidence"]
             }
-        }),
-    ];
+        }
+    })];
 
     let body = json!({
         "model": "opencog-reasoning",
@@ -163,9 +157,8 @@ fn test_opencog_extract_tool_calls_response() {
     assert_eq!(tool_calls.len(), 1);
     assert_eq!(tool_calls[0]["function"]["name"], "pln_deduction");
 
-    let args: Value = serde_json::from_str(
-        tool_calls[0]["function"]["arguments"].as_str().unwrap()
-    ).unwrap();
+    let args: Value =
+        serde_json::from_str(tool_calls[0]["function"]["arguments"].as_str().unwrap()).unwrap();
 
     assert_eq!(args["premise1_strength"], 0.8);
     assert_eq!(args["premise1_confidence"], 0.9);
@@ -209,7 +202,10 @@ fn test_opencog_api_base_default() {
     let expected_chat_url = format!("{}/chat/completions", default_base);
     let expected_embed_url = format!("{}/embeddings", default_base);
 
-    assert_eq!(expected_chat_url, "http://localhost:5000/v1/chat/completions");
+    assert_eq!(
+        expected_chat_url,
+        "http://localhost:5000/v1/chat/completions"
+    );
     assert_eq!(expected_embed_url, "http://localhost:5000/v1/embeddings");
 }
 
@@ -218,7 +214,10 @@ fn test_opencog_api_base_custom() {
     let custom_base = "http://cogserver.local:8080/api";
     let expected_url = format!("{}/chat/completions", custom_base.trim_end_matches('/'));
 
-    assert_eq!(expected_url, "http://cogserver.local:8080/api/chat/completions");
+    assert_eq!(
+        expected_url,
+        "http://cogserver.local:8080/api/chat/completions"
+    );
 }
 
 /// Test streaming response parsing (SSE format)
