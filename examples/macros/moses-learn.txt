@@ -1,5 +1,5 @@
 # MOSES Learning Session Macro
-# Copy to: ~/.config/aichat/macros/moses-learn.txt
+# Copy to: ~/.config/chaicog/macros/moses-learn.txt
 # Usage: .macro moses-learn
 #
 # Sets up a MOSES program learning session for evolutionary

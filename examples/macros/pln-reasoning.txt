@@ -1,5 +1,5 @@
 # PLN Reasoning Session Macro
-# Copy to: ~/.config/aichat/macros/pln-reasoning.txt
+# Copy to: ~/.config/chaicog/macros/pln-reasoning.txt
 # Usage: .macro pln-reasoning
 #
 # Sets up a PLN reasoning session with appropriate model and temperature

@@ -1,5 +1,5 @@
 # OpenCog Debug Session Macro
-# Copy to: ~/.config/aichat/macros/opencog-debug.txt
+# Copy to: ~/.config/chaicog/macros/opencog-debug.txt
 # Usage: .macro opencog-debug
 #
 # Sets up a debugging session with CogUtil logging expertise

@@ -1,15 +1,15 @@
 # OpenCog Integration Examples
 
-This directory contains examples for using AIChat with OpenCog integration.
+This directory contains examples for using Chaicog with OpenCog integration.
 
 ## Prerequisites
 
 1. A running OpenCog server with OpenAI-compatible API
-2. AIChat configured with OpenCog client
+2. Chaicog configured with OpenCog client
 
 ## Configuration
 
-Add the following to your `~/.config/aichat/config.yaml`:
+Add the following to your `~/.config/chaicog/config.yaml`:
 
 ```yaml
 clients:
@@ -33,27 +33,27 @@ clients:
 
 ```bash
 # Set the model
-aichat -m opencog:opencog-chat "What is the AtomSpace?"
+chaicog -m opencog:opencog-chat "What is the AtomSpace?"
 ```
 
 ### 2. Using Roles
 
 ```bash
 # Use the AtomSpace role for knowledge representation tasks
-aichat --role atomspace "Create an inheritance hierarchy for vehicles"
+chaicog --role atomspace "Create an inheritance hierarchy for vehicles"
 
 # Use the PLN role for reasoning tasks
-aichat --role pln "Calculate the truth value for: If cats are mammals and mammals are animals, then cats are animals"
+chaicog --role pln "Calculate the truth value for: If cats are mammals and mammals are animals, then cats are animals"
 
 # Use the Hyperon role for MeTTa tasks
-aichat --role hyperon "Write a MeTTa function to find ancestors"
+chaicog --role hyperon "Write a MeTTa function to find ancestors"
 ```
 
 ### 3. Interactive REPL with Sessions
 
 ```bash
 # Start a session for ongoing work
-aichat
+chaicog
 > .session opencog-dev
 > .role atomspace
 > Create a ConceptNode for "intelligence"
@@ -64,12 +64,12 @@ aichat
 
 First, install the macros:
 ```bash
-cp /path/to/aichat/examples/macros/*.txt ~/.config/aichat/macros/
+cp /path/to/chaicog/examples/macros/*.txt ~/.config/chaicog/macros/
 ```
 
 Then use them in REPL:
 ```bash
-aichat
+chaicog
 > .macro opencog-init
 # Sets up atomspace role and session
 
@@ -84,13 +84,13 @@ aichat
 
 First, install an agent:
 ```bash
-cp -r /path/to/aichat/examples/agents/opencog-reasoning ~/.config/aichat/functions/agents/
+cp -r /path/to/chaicog/examples/agents/opencog-reasoning ~/.config/chaicog/functions/agents/
 ```
 
 Then use it:
 ```bash
 # Start the agent
-aichat -a opencog-reasoning
+chaicog -a opencog-reasoning
 
 # The agent has specialized tools for PLN reasoning
 > Help me design a PLN inference chain for medical diagnosis
@@ -102,7 +102,7 @@ aichat -a opencog-reasoning
 ### Session 1: AtomSpace Knowledge Building
 
 ```
-$ aichat --role atomspace
+$ chaicog --role atomspace
 
 > Create a knowledge base about animals
 
@@ -138,7 +138,7 @@ I'll create an AtomSpace knowledge base about animals:
 ### Session 2: PLN Reasoning
 
 ```
-$ aichat --role pln -m opencog:opencog-reasoning
+$ chaicog --role pln -m opencog:opencog-reasoning
 
 > Given:
 > - "Socrates is a human" with TV <1.0, 0.99>
@@ -169,7 +169,7 @@ Result:
 ### Session 3: MeTTa Programming
 
 ```
-$ aichat --role hyperon -m opencog:opencog-hyperon
+$ chaicog --role hyperon -m opencog:opencog-hyperon
 
 > Write a MeTTa program to compute factorial
 
@@ -244,6 +244,6 @@ Ensure models are defined in `models.yaml`:
 
 Check role files exist:
 ```bash
-ls ~/.config/aichat/roles/
+ls ~/.config/chaicog/roles/
 # Or use built-in roles from assets/roles/
 ```

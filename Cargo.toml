@@ -1,14 +1,14 @@
 [package]
-name = "aichat"
+name = "chaicog"
 version = "0.30.0"
 edition = "2021"
-authors = ["sigoden <sigoden@gmail.com>"]
-description = "All-in-one LLM CLI Tool"
+authors = ["sigoden <sigoden@gmail.com>", "cogpy contributors"]
+description = "Chaicog: an all-in-one LLM CLI tool fusing AIChat with the OpenCog AGI framework"
 license = "MIT OR Apache-2.0"
-homepage = "https://github.com/sigoden/aichat"
-repository = "https://github.com/sigoden/aichat"
+homepage = "https://github.com/cogpy/aicogchat"
+repository = "https://github.com/cogpy/aicogchat"
 categories = ["command-line-utilities"]
-keywords = ["chatgpt", "llm", "cli", "ai", "repl"]
+keywords = ["chatgpt", "llm", "cli", "ai", "opencog"]
 
 [dependencies]
 anyhow = "1.0.69"

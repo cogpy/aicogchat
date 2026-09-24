@@ -1,5 +1,5 @@
 # OpenCog Initialization Macro
-# Copy to: ~/.config/aichat/macros/opencog-init.txt
+# Copy to: ~/.config/chaicog/macros/opencog-init.txt
 # Usage: .macro opencog-init
 #
 # This macro sets up an OpenCog development session with AtomSpace role

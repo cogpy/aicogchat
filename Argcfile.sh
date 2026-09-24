@@ -5,12 +5,12 @@ set -e
 # @env DRY_RUN Dry run mode
 
 # @cmd Test configuration initialization
-# @env AICHAT_CONFIG_DIR=tmp/test-init-config
+# @env CHAICOG_CONFIG_DIR=tmp/test-init-config
 # @arg args~
 test-init-config() {
     unset OPENAI_API_KEY
-    mkdir -p "$AICHAT_CONFIG_DIR"
-    config_file="$AICHAT_CONFIG_DIR/config.yaml"
+    mkdir -p "$CHAICOG_CONFIG_DIR"
+    config_file="$CHAICOG_CONFIG_DIR/config.yaml"
     if [[ -f "$config_file" ]]; then
         rm -f "$config_file"
     fi
@@ -18,12 +18,12 @@ test-init-config() {
 }
 
 # @cmd Test running without configuration file
-# @env AICHAT_PROVIDER!
-# @env AICHAT_CONFIG_DIR=tmp/test-provider-env
+# @env CHAICOG_PROVIDER!
+# @env CHAICOG_CONFIG_DIR=tmp/test-provider-env
 # @arg args~
 test-no-config() {
-    mkdir -p "$AICHAT_CONFIG_DIR"
-    rm -rf "$AICHAT_CONFIG_DIR/config.yaml"
+    mkdir -p "$CHAICOG_CONFIG_DIR"
+    rm -rf "$CHAICOG_CONFIG_DIR/config.yaml"
     cargo run -- "$@"
 }
 
@@ -60,9 +60,9 @@ test-function-calling() {
 test-clients() {
     for c in "${argc_clients[@]}"; do
         echo "### $c stream"
-        aichat -m "$c" 1 + 2 = ?
+        chaicog -m "$c" 1 + 2 = ?
         echo "### $c non-stream"
-        aichat -m "$c" -S 1 + 2 = ?
+        chaicog -m "$c" -S 1 + 2 = ?
     done
 }
 
@@ -358,7 +358,7 @@ _retrieve_api_base() {
 }
 
 _choice_model() {
-    aichat --list-models
+    chaicog --list-models
 }
 
 _choice_provider_model() {

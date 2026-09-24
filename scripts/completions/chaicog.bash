@@ -1,4 +1,4 @@
-_aichat() {
+_chaicog() {
     local cur prev words cword i opts cmd
     COMPREPLY=()
 
@@ -8,7 +8,7 @@ _aichat() {
     do
         case "${cmd},${i}" in
             ",$1")
-                cmd="aichat"
+                cmd="chaicog"
                 ;;
             *)
                 ;;
@@ -16,7 +16,7 @@ _aichat() {
     done
 
     case "${cmd}" in
-        aichat)
+        chaicog)
             opts="-m -r -s -a -e -c -f -S -h -V --model --prompt --role --session --empty-session --save-session --agent --agent-variable --rag --rebuild-rag --macro --serve --execute --code --file --no-stream --dry-run --info --sync-models --list-models --list-roles --list-sessions --list-agents --list-rags --list-macros --help --version"
             if [[ ${cur} == -* || ${cword} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -84,7 +84,7 @@ _aichat() {
 }
 
 if [[ "${BASH_VERSINFO[0]}" -eq 4 && "${BASH_VERSINFO[1]}" -ge 4 || "${BASH_VERSINFO[0]}" -gt 4 ]]; then
-    complete -F _aichat -o nosort -o bashdefault -o default aichat
+    complete -F _chaicog -o nosort -o bashdefault -o default chaicog
 else
-    complete -F _aichat -o bashdefault -o default aichat
+    complete -F _chaicog -o bashdefault -o default chaicog
 fi
