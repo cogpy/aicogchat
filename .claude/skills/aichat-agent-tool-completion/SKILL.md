@@ -1,66 +1,81 @@
 ---
 name: aichat-agent-tool-completion
-description: Implement or finish the backing tool executables for an AIChat-family AI Agent (AIChat, Chaicog, or any fork sharing src/function.rs's functions.json + bin/ tool-calling convention). Use this whenever a repo has an examples/agents/<name>/ (or ~/.config/<binary>/functions/agents/<name>/) directory whose functions.json declares tools with no corresponding bin/ executables, when asked to "wire up", "implement", "finish", or "complete" an agent's tools, or when creating a brand-new AI Agent from scratch that needs real (not stubbed) tool implementations. Also use when a functions.json itself is missing but an agent's index.yaml instructions describe tools it's supposed to have. Push to use this whenever the user mentions AIChat agents, function calling in this codebase, or `LLM_OUTPUT`/tool-call scripts, even if they don't name this skill directly.
+description: Implement or finish the backing tool executables for an AIChat-family AI Agent (AIChat, Chaicog, or any fork sharing src/function.rs's functions.json + bin/ tool-calling convention). Use this whenever a repo has an examples/agents/<name>/ (or ~/.config/<binary>/functions/agents/<name>/) directory whose functions.json declares tools with no working executables behind them, when asked to "wire up", "implement", "finish", or "complete" an agent's tools, when an agent fails to load its functions.json, or when creating a brand-new AI Agent from scratch that needs real (not stubbed) tool implementations. Also use when a functions.json itself is missing but an agent's index.yaml instructions describe tools it's supposed to have. Push to use this whenever the user mentions AIChat agents, function calling in this codebase, or `LLM_OUTPUT`/tool-call scripts, even if they don't name this skill directly.
 ---
 
 # Completing AIChat-family agent tool integrations
 
-AIChat (and forks like Chaicog) implement AI Agent tool-calling with a specific, simple contract in `src/function.rs`: no framework, no schema-generation magic — just JSON in on argv, JSON out via a file. Once you know the contract, implementing a new tool or finishing a half-built agent is mechanical. This skill exists because that contract isn't obvious from reading an agent's `index.yaml` alone, and because skipping straight to writing scripts without confirming the contract first tends to produce tools that *look* right but silently never get invoked.
+AIChat (and forks like Chaicog) implement AI Agent tool-calling with a small contract in `src/function.rs`: JSON arguments in on argv, JSON result out via a file. The contract is easy to get *almost* right. An agent whose `functions.json` has the wrong shape fails to load, and a tool script in the wrong place is never found at call time, even though every file looks plausible. Get the contract right first. It isn't obvious from an agent's `index.yaml`.
 
 ## The contract (read this before writing anything)
 
-An `Agent` = Instructions (a role-style prompt) + Tools (function calls) + Documents (RAG). Concretely, per agent directory:
+An `Agent` = Instructions (a role-style prompt) + Tools (function calls) + Documents (RAG). The layout that actually works, for an agent installed as `<config-dir>/functions/agents/<agent-name>/`:
 
 ```
-examples/agents/<agent-name>/
-├── index.yaml       # name, description, instructions, variables, conversation_starters
-├── functions.json    # JSON array of {name, description, parameters (JSON Schema)}
+<agent-name>/
+├── index.yaml        # name, description, instructions, variables, conversation_starters
+├── functions.json    # a BARE JSON ARRAY of declarations, each with "agent": true
 └── bin/
-    └── <tool_name>    # one executable per declared tool
+    ├── <agent-name>  # dispatcher: invoked as `<agent-name> <tool_name> '<json-args>'`
+    ├── <tool_a>      # optional per-tool scripts the dispatcher routes to
+    └── <tool_b>
 ```
 
-When the model calls a tool, `ToolCall::eval` (in `src/function.rs`) resolves it against the *active* agent's `functions.json` first, falling back to the global config's functions if there's no active agent or no match. It then runs the executable via `run_llm_function`, which:
+The details that matter, all verified against `src/function.rs`:
 
-1. Resolves the executable by prepending, to `PATH`: the agent's own `bin/` dir (if the call has an agent-name prefix) or the global functions `bin/` dir, then falls through to the system `PATH`.
-2. Invokes it as `<tool_name> '<json-arguments>'` — the JSON Schema arguments serialized as a single string, passed as the **last** CLI argument.
-3. Sets `LLM_OUTPUT=<path-to-a-temp-file>` in the environment before running it.
-4. After the process exits, reads that temp file's contents as the tool's return value (parsed as JSON if it parses, else wrapped as `{"output": <raw string>}`); a nonzero exit code aborts the call.
+1. **`functions.json` is a bare array, not an object.** `Functions::init` deserializes straight into `Vec<FunctionDeclaration>`. A `{"functions": [...]}` wrapper fails agent load with `invalid type: map, expected a sequence`. Each entry is `{"name", "description", "parameters", "agent": true}`, where `parameters` is a JSON Schema object with `type`, `properties` and `required`.
 
-That's the entire interface. There is no manifest beyond `functions.json`, no runtime type-checking beyond what the LLM itself respects from your JSON Schema, and no requirement that the tool be written in any particular language — it just needs to be executable and follow the argv-in/`LLM_OUTPUT`-out contract.
+2. **`"agent": true` selects the dispatcher path.** `ToolCall::eval` looks the called name up in the active agent's declarations. With `agent: true`, it runs **`<agent-name> <tool_name> '<json-args>'`**, one executable named after the agent with the tool name as its first argument, and exports the agent's variables as env vars. `run_llm_function` prepends `functions/agents/<agent-name>/bin/` to `PATH` for this call. That is the only case where the agent's own `bin/` is searched.
+
+3. **Without `agent: true` (or for global functions), it runs `<tool_name> '<json-args>'`** from the *global* functions `bin/` dir or the system `PATH`. The agent's own `bin/` is not searched here. So a per-agent script at `agents/<name>/bin/<tool_name>` behind a non-agent declaration is never found: the call fails with "Unable to run".
+
+4. **Output goes to a file, not stdout.** `LLM_OUTPUT=<temp file path>` is set in the environment. The tool writes its result there, which is parsed as JSON if possible and otherwise wrapped as `{"output": "..."}`. Stdout is shown to the user but not returned to the model. A nonzero exit code aborts the call.
+
+So an agent needs **one dispatcher** named exactly like its directory. The simplest robust structure keeps one script per tool plus a tiny dispatcher that validates the tool name and `exec`s the sibling script. `scripts/new_agent_tool.py` generates exactly that. A single dispatcher that implements every tool internally (the llm-functions style) is equally valid.
 
 ## Workflow
 
-1. **Read the agent's `index.yaml` instructions and `conversation_starters` closely.** They're the spec. If the agent talks about "calculate the TruthValue" or "resize this image to WxH", that's the actual behavior the tool needs to perform — not a description to paraphrase into a stub. The whole point of an agent tool is that it does real work the LLM can't do reliably itself (exact math, deterministic codegen, actually touching a file/API); a tool that just echoes its input back or returns a canned string defeats the purpose and the agent will look broken even though "the tool exists."
+1. **Read the agent's `index.yaml` instructions and `conversation_starters` closely.** They're the spec. If the agent talks about "calculate the TruthValue" or "resize this image to WxH", that's the behavior the tool must actually perform. Don't paraphrase it into a stub. An agent tool exists to do real work the LLM can't do reliably itself: exact math, deterministic codegen, actually touching a file or API. A tool that echoes its input or returns a canned string makes the agent look broken even though "the tool exists."
 
-2. **Write or extend `functions.json`** if it's missing or incomplete, matching the tool names/parameters the instructions actually describe. Follow the existing style in the repo (see any other agent's `functions.json` for the exact JSON Schema shape: `type`, `description`, `properties`, `required`). Keep parameter names and types something a model would naturally produce from the conversation starters — don't invent parameters the instructions never mention.
+2. **Write or fix `functions.json`** as a bare array with `"agent": true` on every entry, matching the tool names and parameters the instructions describe. Keep parameter names natural for what a model would produce from the conversation starters. Don't invent parameters the instructions never mention.
 
-3. **Implement each tool as `bin/<tool_name>`.** Use `scripts/new_agent_tool.py` in this skill to scaffold the argv-parsing/`LLM_OUTPUT`-writing boilerplate so you don't hand-roll it (see below) — then replace the placeholder body with the actual logic:
+3. **Scaffold each tool with the bundled script**, then replace the placeholder body with real logic:
    ```bash
    python3 <skill-dir>/scripts/new_agent_tool.py \
      --agent-dir examples/agents/<agent-name> \
      --tool-name <tool_name> \
      --language python   # or bash
    ```
-   (If you're working in a git worktree, `.claude/` — and this skill's own scripts — may not be part of the worktree checkout even though the rest of the repo is. Invoke the script by its absolute path in the main checkout in that case; `--agent-dir` can still be worktree-relative since `examples/` itself is normally tracked and checked out.)
+   This writes `bin/<tool_name>`, an executable stub that reads the JSON arguments from its last argv and writes to `$LLM_OUTPUT`, falling back to stdout for manual testing. It also creates the `bin/<agent-name>` dispatcher if it's missing and checks that `functions.json` is an array with `agent: true`, warning if not. Fill the TODO with real logic, in whatever language fits, as long as it stays executable and speaks the same contract.
 
-   This writes an executable stub at `bin/<tool_name>` (chmod +x already applied) that reads `sys.argv[1]` as JSON, has a clearly marked `# TODO: implement` section, and writes the result to `$LLM_OUTPUT` (falling back to stdout if that env var isn't set — useful for manual testing). Fill in the TODO with real logic: exact formulas, real code generation, real file/API operations — whatever the domain actually calls for. Reach for whatever language/libraries fit the task; Python is the path of least resistance for JSON handling but bash, or a compiled helper, are equally valid as long as the binary ends up executable and speaks the same argv/`LLM_OUTPUT` contract.
+   (In a git worktree, `.claude/`, and with it this skill's scripts, may not be part of the checkout. Invoke the script by its absolute path in the main checkout; `--agent-dir` can stay worktree-relative.)
 
-4. **Test each tool directly before wiring anything else up.** This catches contract bugs (wrong exit code, non-JSON in `LLM_OUTPUT`, wrong argv index) immediately, without needing a live LLM session:
+4. **Test through the dispatcher, exactly as the runtime calls it.** Testing `bin/<tool_name>` directly skips the dispatch hop, which is where most breakage hides:
    ```bash
-   LLM_OUTPUT=/tmp/tool-test-out.json ./bin/<tool_name> '{"key": "value"}'
-   cat /tmp/tool-test-out.json
+   LLM_OUTPUT=/tmp/tool-out.json ./bin/<agent-name> <tool_name> '{"key": "value"}'
+   cat /tmp/tool-out.json
    ```
 
-5. **If the tool exercises library/client code that has its own logic** (e.g. it wraps a request-building or response-parsing function from `src/`), add or extend a Rust test for that underlying logic — not the shell script itself, which is better covered by the manual invocation in step 4. Look for an existing `tests/*.rs` file for the relevant client/module as a pattern to follow, or start a new one if none exists yet. Keep these tests scoped to pure functions (body building, parsing) rather than requiring a live external server; mark anything that genuinely needs a live server with `#[ignore]` and a comment explaining what it needs.
+5. **Confirm the agent actually loads.** A malformed `functions.json` only fails at agent-load time, never at `cargo build`. Install it into a throwaway config dir and load it. The env var prefix is `<CRATE_NAME>_`, e.g. `CHAICOG_CONFIG_DIR` or `AICHAT_CONFIG_DIR`. Use `</dev/null` and a timeout: agent load can stop at an interactive prompt, and without them the command just hangs.
+   ```bash
+   T=$(mktemp -d); mkdir -p $T/functions/agents
+   printf 'model: openai:gpt-4o\nclients:\n  - type: openai\n    api_key: dummy\n' > $T/config.yaml
+   cp -r examples/agents/<agent-name> $T/functions/agents/
+   CHAICOG_CONFIG_DIR=$T timeout 20 ./target/debug/chaicog -a <agent-name> --info </dev/null
+   ```
 
-6. **Add a short usage example** so a person (or a future agent) can actually exercise the agent end-to-end — a README section or example file showing a realistic prompt and the tool call(s) it should trigger. This is what turns "the code compiles" into "this is actually usable."
+6. **If a tool exercises library/client code with its own logic** (e.g. it wraps a request-building or response-parsing function from `src/`), add or extend a Rust test for that logic, following an existing `tests/*.rs` file. Keep such tests to pure functions. Mark anything that genuinely needs a live server `#[ignore]`, with a comment saying what it needs.
 
-7. **Verify the whole repo still builds and tests pass** (`cargo build`, `cargo test`) before considering the work done — a broken `functions.json` (invalid JSON) or a non-executable script fails silently at agent-load time otherwise, not at compile time.
+7. **Add a short usage example** so a person, or a future agent, can exercise the agent end-to-end: a realistic prompt and the tool call(s) it should trigger.
 
-## Common mistakes this contract makes easy to avoid if you know about them
+8. **Run the repo's build and tests** (`cargo build`, `cargo test`) before calling it done.
 
-- **Forgetting `chmod +x`.** The scaffolding script does this for you; if you hand-write a script instead, don't skip it.
-- **Writing to stdout instead of `$LLM_OUTPUT`.** If `LLM_OUTPUT` is set (which it will be when actually invoked from the running binary), the tool's return value comes from *that file*, not stdout. Stdout-only output silently returns nothing to the model. Always write to `$LLM_OUTPUT` when it's set, and only fall back to stdout for your own manual testing convenience.
-- **Assuming `sys.argv[1]` is a dict when it might be a JSON string containing a dict.** Parse it with a real JSON parser (`json.loads` / `jq`), don't string-split it.
-- **One tool per file, named exactly like the `name` field in `functions.json`.** The executable's filename *is* the lookup key — a typo between the two means the tool silently 404s at call time with an "Unexpected call" error from `ToolCall::eval`.
-- **Nondeterministic or placeholder logic.** If a tool can't actually be implemented without a live external server (e.g. it truly needs to hit a running database), say so explicitly in the tool's own output or in a comment, rather than quietly returning fabricated-looking data that will be mistaken for real results.
+## Common mistakes
+
+- **Wrapping `functions.json` in an object, or omitting `"agent": true`.** The first breaks agent load. The second routes calls away from the agent's `bin/` entirely.
+- **No dispatcher, or a dispatcher named differently from the agent directory.** The runtime execs `<agent-name>`, so the name must match the directory the agent is installed under.
+- **A dispatcher that trusts the tool name.** It comes from the model. Validate it (e.g. `^[A-Za-z0-9_]+$`) before building a path from it, as the generated dispatcher does.
+- **Forgetting `chmod +x`.** The scaffold does it for you; hand-written scripts need it too.
+- **Writing the result to stdout instead of `$LLM_OUTPUT`.** Stdout-only output returns nothing to the model.
+- **Hand-parsing the JSON argument.** Use `json.loads` or `jq`, not string splitting.
+- **Placeholder or fabricated results.** If a tool truly can't work without a live external service, say so in its output rather than returning data that looks real.

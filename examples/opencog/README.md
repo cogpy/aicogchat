@@ -64,21 +64,23 @@ chaicog
 
 First, install the macros:
 ```bash
-cp /path/to/chaicog/examples/macros/*.txt ~/.config/chaicog/macros/
+cp /path/to/chaicog/examples/macros/*.yaml ~/.config/chaicog/macros/
 ```
 
-Then use them in REPL:
+Then pass your question as the macro's argument:
 ```bash
 chaicog
-> .macro opencog-init
-# Sets up atomspace role and session
+> .macro opencog-init Create a ConceptNode hierarchy for vehicles
+# Asks using the atomspace role
 
-> .macro pln-reasoning
-# Sets up PLN role with reasoning model
+> .macro pln-reasoning Cats are mammals <0.9,0.9>, mammals are animals <1.0,0.95>; what is the TV of "cats are animals"?
+# Asks using the PLN role and the opencog-reasoning model
 
-> .macro hyperon-metta
-# Sets up Hyperon role for MeTTa
+> .macro hyperon-metta Write a MeTTa function to find ancestors
+# Asks using the Hyperon role and the opencog-hyperon model
 ```
+
+A macro runs on a copy of the current config, so its role/model don't persist afterwards. For an ongoing session, use `.role` and `.session` directly, as in example 3 above.
 
 ### 5. Using Agents
 

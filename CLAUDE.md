@@ -112,7 +112,7 @@ Key config-adjacent files:
 
 ### Function Calling / Tools
 
-`src/function.rs` implements tool-call execution: `Functions` loads `functions.json` declarations, `ToolCall::eval` resolves whether a call belongs to the active `Agent` or the global config, then shells out to an executable (found via `PATH`, agent-local `bin/`, or the global functions `bin/` dir) with the JSON arguments as its final arg and an `LLM_OUTPUT` env var for the result file. This is how both global tools and per-agent tools (e.g. the OpenCog agents below) are implemented — see `examples/agents/*/bin/` for real examples.
+`src/function.rs` implements tool-call execution: `Functions` loads `functions.json` (a bare JSON array of declarations), and `ToolCall::eval` resolves each call against the active `Agent`'s declarations, then the global config's. A declaration with `"agent": true` runs the agent's dispatcher, `<agent-name> <tool_name> '<json-args>'`, from `functions/agents/<agent-name>/bin/`. Any other declaration runs `<tool_name> '<json-args>'` from the global functions `bin/` dir or `PATH`. In both cases the tool writes its result to the file named by the `LLM_OUTPUT` env var. The OpenCog example agents use the dispatcher form: see `examples/agents/*/bin/`.
 
 ## OpenCog Integration
 
@@ -177,21 +177,23 @@ Example macros in `examples/macros/`:
 
 | Macro | Description |
 |-------|-------------|
-| `opencog-init` | Initialize AtomSpace development session |
-| `pln-reasoning` | Set up PLN inference session |
-| `opencog-debug` | Debugging session with logging |
-| `hyperon-metta` | MeTTa programming session |
-| `moses-learn` | MOSES program learning session |
+| `opencog-init` | Ask with the `atomspace` role |
+| `pln-reasoning` | Ask with the `pln` role and `opencog-reasoning` model |
+| `opencog-debug` | Ask with the `cogutil` role |
+| `hyperon-metta` | Ask with the `hyperon` role and `opencog-hyperon` model |
+| `moses-learn` | Ask with the `moses` role and `opencog-reasoning` model |
 
 To install macros:
 ```bash
-cp examples/macros/*.txt ~/.config/chaicog/macros/
+cp examples/macros/*.yaml ~/.config/chaicog/macros/
 ```
 
-Usage in REPL:
+Macros are YAML files (`<name>.yaml` with a `steps:` list of REPL commands) and take the question as their argument:
 ```
-.macro opencog-init
+.macro pln-reasoning Socrates is Human <1.0,0.99>, Human is Mortal <1.0,0.95>; is Socrates Mortal?
+chaicog --macro opencog-init "What is an AtomSpace?"
 ```
+A macro runs on a copy of the current config, so its role/model changes don't persist after it returns. For an ongoing session, use `.role <name>` and `.session <name>` directly.
 
 ### OpenCog Environment Variables
 
