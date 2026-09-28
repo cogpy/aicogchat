@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Agent dispatcher. For declarations with "agent": true, chaicog runs
+#   <agent-name> <tool_name> '<json-args>'
+# from this bin/ directory (see run_llm_function in src/function.rs).
+# Route the call to the sibling tool script of the same name.
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  echo "Usage: $(basename "$0") <tool_name> <json_args>" >&2
+  exit 1
+fi
+
+tool="$1"
+shift
+
+if [[ ! "$tool" =~ ^[A-Za-z0-9_]+$ ]]; then
+  echo "Invalid tool name: $tool" >&2
+  exit 1
+fi
+
+bin_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ ! -x "$bin_dir/$tool" ]]; then
+  echo "Unknown tool: $tool" >&2
+  exit 1
+fi
+
+exec "$bin_dir/$tool" "$@"

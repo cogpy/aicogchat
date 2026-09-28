@@ -114,7 +114,7 @@ jobs:
       run: |
         set -euxo pipefail
 
-        bin=${GITHUB_REPOSITORY##*/}
+        bin=$(sed -n 's/^name = "\(.*\)"$/\1/p' Cargo.toml | head -n1)
         dist_dir=`pwd`/dist
         name=$bin-$version-$target
         executable=target/$target/release/$bin

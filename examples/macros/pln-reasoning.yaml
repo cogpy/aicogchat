@@ -1,0 +1,15 @@
+# Ask a PLN inference question using the pln role and reasoning model
+# Copy to: ~/.config/chaicog/macros/pln-reasoning.yaml
+# Usage:   .macro pln-reasoning <question>      (REPL)
+#          chaicog --macro pln-reasoning <question>
+#
+# Macros run on a copy of the current config, so the role/model set here
+# apply only to this question. For an ongoing session, run .role pln
+# (and .session <name>) directly in the REPL instead.
+variables:
+  - name: question
+    rest: true
+steps:
+  - .role pln
+  - .model opencog:opencog-reasoning
+  - "{{question}}"

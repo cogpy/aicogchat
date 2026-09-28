@@ -25,11 +25,11 @@ assignees: ''
 <!-- If applicable, add screenshots to help explain your problem. -->
 
 **Configuration**
-<!-- Please run `aichat --info` and paste the output -->
+<!-- Please run `chaicog --info` and paste the output -->
 
 **Environment (please complete the following information):**
 - os version: [e.g. Ubuntu 20.04]
-- aichat version: [e.g. 0.9.0]
+- chaicog version: [e.g. 0.30.0]
 - terminal version: [e.g. GNOME Terminal 3.44.0]
 
 **Additional context**

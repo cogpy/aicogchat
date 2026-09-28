@@ -1,57 +1,57 @@
 module completions {
 
-  def "nu-complete aichat completions" [] {
+  def "nu-complete chaicog completions" [] {
     [ "bash" "zsh" "fish" "powershell" "nushell" ]
   }
 
-  def "nu-complete aichat model" [] {
-    ^aichat --list-models |
+  def "nu-complete chaicog model" [] {
+    ^chaicog --list-models |
     | lines 
     | parse "{value}" 
   }
 
-  def "nu-complete aichat role" [] {
-    ^aichat --list-roles |
+  def "nu-complete chaicog role" [] {
+    ^chaicog --list-roles |
     | lines 
     | parse "{value}" 
   }
 
-  def "nu-complete aichat session" [] {
-    ^aichat --list-sessions |
+  def "nu-complete chaicog session" [] {
+    ^chaicog --list-sessions |
     | lines 
     | parse "{value}" 
   }
 
-  def "nu-complete aichat agent" [] {
-    ^aichat --list-agents |
+  def "nu-complete chaicog agent" [] {
+    ^chaicog --list-agents |
     | lines 
     | parse "{value}" 
   }
 
-  def "nu-complete aichat rag" [] {
-    ^aichat --list-rags |
+  def "nu-complete chaicog rag" [] {
+    ^chaicog --list-rags |
     | lines 
     | parse "{value}" 
   }
 
-  def "nu-complete aichat macro" [] {
-    ^aichat --list-macros |
+  def "nu-complete chaicog macro" [] {
+    ^chaicog --list-macros |
     | lines 
     | parse "{value}" 
   }
 
-  export extern aichat [
-    --model(-m): string@"nu-complete aichat model"      # Select a LLM model
+  export extern chaicog [
+    --model(-m): string@"nu-complete chaicog model"      # Select a LLM model
     --prompt                                            # Use the system prompt
-    --role(-r): string@"nu-complete aichat role"        # Select a role
-    --session(-s): string@"nu-complete aichat session"  # Start or join a session
+    --role(-r): string@"nu-complete chaicog role"        # Select a role
+    --session(-s): string@"nu-complete chaicog session"  # Start or join a session
     --empty-session                                     # Ensure the session is empty
     --save-session                                      # Ensure the new conversation is saved to the session
-    --agent(-a): string@"nu-complete aichat agent"      # Start a agent
+    --agent(-a): string@"nu-complete chaicog agent"      # Start a agent
     --agent-variable                                    # Set agent variables
-    --rag: string@"nu-complete aichat rag"              # Start a RAG
+    --rag: string@"nu-complete chaicog rag"              # Start a RAG
     --rebuild-rag                                       # Rebuild the RAG to sync document changes
-    --macro: string@"nu-complete aichat macro"          # Execute a macro
+    --macro: string@"nu-complete chaicog macro"          # Execute a macro
     --serve                                             # Serve the LLM API and WebAPP
     --execute(-e)                                       # Execute commands in natural language
     --code(-c)                                          # Output code only
